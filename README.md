@@ -1,6 +1,29 @@
 # 4d-plugin-mdi
 4D plugin to resize the MDI window
 
+##Platform
+
+| carbon | cocoa | win32 | win64 |
+|:------:|:-----:|:---------:|:---------:|
+|🚫|🚫|🆗|🆗|
+
+Commands
+---
+
+```c
+// --- MDI
+MDI_Get_title
+MDI_SET_TITLE
+MDI_USE_ICON_FILE
+MDI_MAXIMIZE
+MDI_MINIMIZE
+MDI_SET_CLOSE_BOX_ENABLED
+MDI_Get_close_box_enabled
+MDI_RESTORE
+MDI_SET_POSITION
+MDI_GET_POSITION
+```
+
 Example
 ---
 ```
