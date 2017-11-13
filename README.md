@@ -1,14 +1,13 @@
 # 4d-plugin-mdi
 4D plugin to resize the MDI window
 
-##Platform
+### Platform
 
 | carbon | cocoa | win32 | win64 |
 |:------:|:-----:|:---------:|:---------:|
-|🚫|🚫|🆗|🆗|
+|<img src="https://cloud.githubusercontent.com/assets/1725068/22371562/1b091f0a-e4db-11e6-8458-8653954a7cce.png" width="24" height="24" />|<img src="https://cloud.githubusercontent.com/assets/1725068/22371562/1b091f0a-e4db-11e6-8458-8653954a7cce.png" width="24" height="24" />|<img src="https://cloud.githubusercontent.com/assets/1725068/22371562/1b091f0a-e4db-11e6-8458-8653954a7cce.png" width="24" height="24" />|<img src="https://cloud.githubusercontent.com/assets/1725068/22371562/1b091f0a-e4db-11e6-8458-8653954a7cce.png" width="24" height="24" />|
 
-Commands
----
+### Commands
 
 ```c
 // --- MDI
@@ -24,8 +23,8 @@ MDI_SET_POSITION
 MDI_GET_POSITION
 ```
 
-Example
----
+### Examples
+
 ```
 MDI GET POSITION ($x;$y;$width;$height)
 GET WINDOW RECT($l;$t;$r;$b;Current form window)
