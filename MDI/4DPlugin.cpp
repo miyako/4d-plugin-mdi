@@ -18,6 +18,66 @@ namespace MDI{
 }
 #endif
 
+void OnStartup()
+{
+#if VERSIONWIN
+    PA_ulong32 version = PA_Get4DVersion();
+    
+    if (version >= 16)
+    {
+        MDI::windowRef = (HWND)PA_GetMainWindowHWND();
+    }
+    else
+    {
+        //the window class is the folder name of the application
+        HWND mdi = NULL;
+        wchar_t path[_MAX_PATH] = { 0 };
+        wchar_t * applicationPath = wcscpy(path, (const wchar_t *)PA_GetApplicationFullPath().fString);
+        //remove file name (4D.exe)
+        PathRemoveFileSpec(path);
+        //check instance as well, to be sure
+        HINSTANCE h = (HINSTANCE)PA_Get4DHInstance();
+        do {
+            mdi = FindWindowEx(NULL, mdi, (LPCTSTR)path, NULL);
+            if (mdi)
+            {
+                if (h == (HINSTANCE)GetWindowLongPtr(mdi, GWLP_HINSTANCE))
+                {
+                    break;
+                }
+            }
+        } while (mdi);
+        MDI::windowRef = mdi;
+    }
+#endif
+}
+
+void OnExit()
+{
+#if VERSIONWIN
+    if (MDI::windowRef)
+    {
+        wchar_t path[_MAX_PATH] = { 0 };
+        wchar_t * applicationPath = wcscpy(path, (const wchar_t *)PA_GetApplicationFullPath().fString);
+        
+        SHFILEINFO fileinfo;
+        if (SHGetFileInfo((LPCTSTR)applicationPath,
+                          0,
+                          &fileinfo,
+                          sizeof(fileinfo),
+                          SHGFI_LARGEICON | SHGFI_ICON))
+        {
+            HICON hIcon = fileinfo.hIcon;
+            SendMessage(MDI::windowRef, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+            /* "you are responsible for freeing it with DestroyIcon when you no longer need it" */
+            /* https://docs.microsoft.com/ja-jp/windows/desktop/api/shellapi/nf-shellapi-shgetfileinfoa */
+            DestroyIcon(hIcon);
+        }
+        
+    }
+#endif
+}
+
 void PluginMain(PA_long32 selector, PA_PluginParameters params)
 {
 	try
@@ -34,38 +94,19 @@ void PluginMain(PA_long32 selector, PA_PluginParameters params)
 	}
 }
 
-#if VERSIONWIN
-HWND MDI_getHWND(){
-    //the window class is the folder name of the application 
-	HWND mdi = NULL;
-    wchar_t path[_MAX_PATH] = {0};
-    wchar_t * applicationPath = wcscpy(path, (const wchar_t *)PA_GetApplicationFullPath().fString);
-	//remove file name (4D.exe)
-    PathRemoveFileSpec(path);
-	//check instance as well, to be sure
-	HINSTANCE h = (HINSTANCE)PA_Get4DHInstance();
-	do{
-		mdi = FindWindowEx(NULL, mdi, (LPCTSTR)path, NULL); 
-		if(mdi){
-			if(h == (HINSTANCE)GetWindowLongPtr(mdi, GWLP_HINSTANCE)){
-				break;
-			}
-		}
-	}while(mdi);
-    return mdi;
-}
-#endif
-
 void CommandDispatcher (PA_long32 pProcNum, sLONG_PTR *pResult, PackagePtr pParams)
 {
 	switch(pProcNum)
 	{
-		case kInitPlugin :
-		case kServerInitPlugin :  
-#if VERSIONWIN              
-			MDI::windowRef = MDI_getHWND();
-#endif            
-			break;		    
+        case kInitPlugin :
+        case kServerInitPlugin :
+        OnStartup();
+        break;
+        
+        case kDeinitPlugin:
+        OnExit();
+        break;
+
 // --- MDI
 
 		case 1 :
