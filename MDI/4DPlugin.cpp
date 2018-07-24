@@ -190,27 +190,17 @@ void MDI_USE_ICON_FILE(sLONG_PTR *pResult, PackagePtr pParams)
 
 	SHFILEINFO fileinfo;
 	
-	if(SHGetFileInfo((LPCTSTR)Param1.getUTF16StringPtr(), 
-					 0,
-					 &fileinfo, 
-					 sizeof(fileinfo), 
-					 SHGFI_SMALLICON|SHGFI_ICON)){
-		
-		HICON smallIcon = fileinfo.hIcon;
-		SendMessage(MDI::windowRef, WM_SETICON, ICON_SMALL, (LPARAM)smallIcon);
-		DestroyIcon(smallIcon);
-        
-        if(SHGetFileInfo((LPCTSTR)Param1.getUTF16StringPtr(), 
-					 0,
-					 &fileinfo, 
-					 sizeof(fileinfo), 
-					 SHGFI_LARGEICON|SHGFI_ICON)){
-		
-            HICON largeIcon = fileinfo.hIcon;
-			SendMessage(MDI::windowRef, WM_SETICON, ICON_BIG, (LPARAM)largeIcon);
-            DestroyIcon(largeIcon);
-        
-        }
+	if (SHGetFileInfo((LPCTSTR)Param1.getUTF16StringPtr(),
+		0,
+		&fileinfo,
+		sizeof(fileinfo),
+		SHGFI_LARGEICON | SHGFI_ICON))
+	{
+		HICON hIcon = fileinfo.hIcon;
+		SendMessage(MDI::windowRef, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+		/* "you are responsible for freeing it with DestroyIcon when you no longer need it" */
+		/* https://docs.microsoft.com/ja-jp/windows/desktop/api/shellapi/nf-shellapi-shgetfileinfoa */
+		DestroyIcon(hIcon);
 	}
 #endif    
 }
