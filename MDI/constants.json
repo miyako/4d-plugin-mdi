@@ -1,0 +1,81 @@
+{
+    "themes": [
+        {
+            "theme": "Window Z-Order Flags",
+            "constants": [
+                {
+                    "name": "HWND_BOTTOM",
+                    "value": "1:L"
+                },
+                {
+                    "name": "HWND_NOTOPMOST",
+                    "value": "-2:L"
+                },
+                {
+                    "name": "HWND_TOP",
+                    "value": "0:L"
+                },
+                {
+                    "name": "HWND_TOPMOST",
+                    "value": "-1:L"
+                }
+            ]
+        },{
+            "theme": "Window Position Flags",
+            "constants": [
+                {
+                    "name": "SWP_ASYNCWINDOWPOS",
+                    "value": "16384:L"
+                },
+                {
+                    "name": "SWP_DEFERERASE",
+                    "value": "8192:L"
+                },
+                {
+                    "name": "SWP_DRAWFRAME",
+                    "value": "32:L"
+                },
+                {
+                    "name": "SWP_HIDEWINDOW",
+                    "value": "128:L"
+                },
+                {
+                    "name": "SWP_NOACTIVATE",
+                    "value": "16:L"
+                },
+                {
+                    "name": "SWP_NOCOPYBITS",
+                    "value": "256:L"
+                },
+                {
+                    "name": "SWP_NOMOVE",
+                    "value": "2:L"
+                },
+                {
+                    "name": "SWP_NOOWNERZORDER",
+                    "value": "512:L"
+                },
+                {
+                    "name": "SWP_NOREDRAW",
+                    "value": "8:L"
+                },
+                {
+                    "name": "SWP_NOSENDCHANGING",
+                    "value": "1024:L"
+                },
+                {
+                    "name": "SWP_NOSIZE",
+                    "value": "1:L"
+                },
+                {
+                    "name": "SWP_NOZORDER",
+                    "value": "4:L"
+                },
+                {
+                    "name": "SWP_SHOWWINDOW",
+                    "value": "64:L"
+                }
+            ]
+        }
+    ]
+}
