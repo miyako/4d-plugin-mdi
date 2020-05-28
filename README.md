@@ -21,7 +21,7 @@ DELAY PROCESS(Current process;60*2.5)
 MDI SET POSITION (HWND_TOPMOST;$x;$y;$width;$height;SWP_NOACTIVATE)
 ```
 
-##### Remarks
+#### Remarks
 
 Be careful when passing arguments to ```MDI SET POSITION```. ``$1`` is the "positioning" option (``HWND_*``) ``$6`` is the "z-order" option (``SWP_*``).  
 
