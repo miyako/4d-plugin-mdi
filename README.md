@@ -21,7 +21,11 @@ DELAY PROCESS(Current process;60*2.5)
 MDI SET POSITION (HWND_TOPMOST;$x;$y;$width;$height;SWP_NOACTIVATE)
 ```
 
-**注記**: ```MDI SET POSITION```の第1引数は，配置順序のハンドルまたは定数，第6引数は，ウィンドウ位置のオプションです。[SetWindowPos](https://msdn.microsoft.com/ja-jp/library/cc411206.aspx)を参照してください。
+##### Remarks
+
+Be careful when passing arguments to ```MDI SET POSITION```. ``$1`` is the "positioning" option (``HWND_*``) ``$6`` is the "z-order" otpion (``SWP_*``).  
+
+```MDI SET POSITION```の第1引数は，配置順序のハンドルまたは定数，第6引数は，ウィンドウ位置のオプションです。[SetWindowPos](https://msdn.microsoft.com/ja-jp/library/cc411206.aspx)を参照してください。
 
 * HWND_BOTTOM 1
 * HWND_NOTOPMOST -2
