@@ -14,6 +14,13 @@
 #include <vector>
 #include <wchar.h>
 
+#if VERSIONWIN
+//C_TYPES.h defines WIN32_LEAN_AND_MEAN before <windows.h>, which excludes <shellapi.h>.
+//ExtractIconW, SHGetFileInfoW, SHFILEINFOW and SHGFI_* are declared there.
+//(shell32.lib is already in the project's AdditionalDependencies.)
+#include <shellapi.h>
+#endif
+
 #pragma mark -
 
 static bool wasMDI;
@@ -479,7 +486,7 @@ void MDI_SET_POSITION(PA_PluginParameters params) {
         h.fromParamAtIndex(pParams, 5);
         flags.fromParamAtIndex(pParams, 6);
         
-        HWND hWndInsertAfter = (HWND)insertAfter.getIntValue();
+        HWND hWndInsertAfter = (HWND)(INT_PTR)insertAfter.getIntValue();
         
         if((hWndInsertAfter != HWND_BOTTOM)
            && (hWndInsertAfter != HWND_NOTOPMOST)
