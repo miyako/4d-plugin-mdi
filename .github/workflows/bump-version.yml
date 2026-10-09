@@ -35,7 +35,7 @@ permissions:
 
 env:
   # ---- edit these per-project ----
-  XCODE_PROJECT: cURL.xcodeproj
+  XCODE_PROJECT: MDI.xcodeproj
   INFO_PLIST: Info.plist
   # ---------------------------------
 
