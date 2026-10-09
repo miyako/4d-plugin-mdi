@@ -10,9 +10,37 @@
 
 #include "4DPlugin-MDI.h"
 
+#include <string>
+#include <vector>
+#include <wchar.h>
+
 #pragma mark -
 
 static bool wasMDI;
+
+#if VERSIONWIN
+
+// The one icon handle this plugin created (via LoadImage) and still owns.
+// Only touched from the main process (PA_RunInMainProcess), so no locking.
+// 4D's own icon is never stored here and therefore never destroyed by us.
+static HICON ownedIcon = NULL;
+
+// Copies the 4D application's full path into a std::wstring, with no fixed-size buffer.
+// The scan is bounded at 32767 characters (the Windows extended-length path maximum),
+// so it never reads past that even if the SDK string were not NUL-terminated.
+static bool getApplicationFullPath(std::wstring &out) {
+    
+    auto us = PA_GetApplicationFullPath();
+    const wchar_t *src = (const wchar_t *)us.fString;
+    
+    if (!src) return false;
+    
+    out.assign(src, wcsnlen_s(src, 32767));
+    
+    return !out.empty();
+}
+
+#endif
 
 static bool isSDI() {
     
@@ -58,16 +86,21 @@ static HWND getMDI() {
     // we can assume that the window class is the folder name of the application
     
     HWND mdi = NULL;
-    wchar_t path[_MAX_PATH] = { 0 };
-    wchar_t * applicationPath = wcscpy(path, (const wchar_t *)PA_GetApplicationFullPath().fString);
+    std::wstring path;
+    
+    if (!getApplicationFullPath(path))
+        return NULL;
     
     //remove file name (4D.exe)
-    PathRemoveFileSpec(path);
+    size_t sep = path.find_last_of(L"\\/");
+    if (sep == std::wstring::npos)
+        return NULL;
+    path.erase(sep);
     //check instance as well, to be sure
     HINSTANCE h = (HINSTANCE)PA_Get4DHInstance();
     
     do {
-        mdi = FindWindowEx(NULL, mdi, (LPCTSTR)path, NULL);
+        mdi = FindWindowExW(NULL, mdi, path.c_str(), NULL);
         if (mdi)
         {
             if (h == (HINSTANCE)GetWindowLongPtr(mdi, GWLP_HINSTANCE))
@@ -94,37 +127,51 @@ void OnExit() {
 				SC_CLOSE,
 				MF_BYCOMMAND | MF_ENABLED);
             
-            DWORD_PTR ptr;
-            HICON hIcon;
+            DWORD_PTR ptr = 0;
+            HICON hIcon = NULL;
             
-            wchar_t path[_MAX_PATH] = { 0 };
-            wchar_t * applicationPath = wcscpy(path, (const wchar_t *)PA_GetApplicationFullPath().fString);
+            std::wstring applicationPath;
             
-            hIcon = (HICON)ExtractIcon((HINSTANCE)PA_Get4DHInstance(),
-                                       (LPCTSTR)applicationPath, 0);
-            
-            if (!hIcon)
+            if (getApplicationFullPath(applicationPath))
             {
-                SHFILEINFO fileinfo;
-                if (SHGetFileInfo((LPCTSTR)applicationPath,
-                                  0,
-                                  &fileinfo,
-                                  sizeof(fileinfo),
-                                  SHGFI_LARGEICON | SHGFI_ICON))
+                hIcon = ExtractIconW((HINSTANCE)PA_Get4DHInstance(),
+                                     applicationPath.c_str(), 0);
+                
+                //ExtractIcon returns 1 (not NULL) when the file is not an executable/icon file
+                if ((UINT_PTR)hIcon <= 1)
+                    hIcon = NULL;
+                
+                if (!hIcon)
                 {
-                    hIcon = fileinfo.hIcon;
+                    SHFILEINFOW fileinfo = {};
+                    if (SHGetFileInfoW(applicationPath.c_str(),
+                                       0,
+                                       &fileinfo,
+                                       sizeof(fileinfo),
+                                       SHGFI_LARGEICON | SHGFI_ICON))
+                    {
+                        hIcon = fileinfo.hIcon;
+                    }
                 }
             }
             
             if (hIcon)
             {
-                SendMessageTimeoutW(mdi,
-                                    WM_SETICON,
-                                    ICON_SMALL,
-                                    (LPARAM)hIcon,
-                                    SMTO_NORMAL,
-                                    MESSAGE_TIMEOUT_MS,
-                                    &ptr);
+                if (SendMessageTimeoutW(mdi,
+                                        WM_SETICON,
+                                        ICON_SMALL,
+                                        (LPARAM)hIcon,
+                                        SMTO_NORMAL,
+                                        MESSAGE_TIMEOUT_MS,
+                                        &ptr))
+                {
+                    //release the icon we loaded via MDI USE ICON FILE, if it was the one replaced
+                    if (ownedIcon && ((HICON)ptr == ownedIcon))
+                    {
+                        DestroyIcon(ownedIcon);
+                        ownedIcon = NULL;
+                    }
+                }
             }
             
             
@@ -225,13 +272,15 @@ void MDI_Get_title(PA_PluginParameters params) {
     HWND mdi = getMDI();
     
     if (mdi) {
-        size_t size = GetWindowTextLength(mdi);
-        size++;
+        int length = GetWindowTextLengthW(mdi);
         
-        std::vector<wchar_t> buf(size);
-        size = GetWindowText(mdi, (LPTSTR)&buf[0], size);
-        
-        returnValue.setUTF16String((const PA_Unichar *)&buf[0], size);
+        if (length > 0) {
+            std::vector<wchar_t> buf((size_t)length + 1);
+            int copied = GetWindowTextW(mdi, &buf[0], (int)buf.size());
+            if (copied < 0) copied = 0;
+            
+            returnValue.setUTF16String((const PA_Unichar *)&buf[0], (PA_long32)copied);
+        }
         
     }
 
@@ -253,7 +302,7 @@ void MDI_SET_TITLE(PA_PluginParameters params) {
         PackagePtr pParams = (PackagePtr)params->fParameters;
         Param1.fromParamAtIndex(pParams, 1);
         
-        SetWindowText(mdi, (LPCTSTR)Param1.getUTF16StringPtr());
+        SetWindowTextW(mdi, (LPCWSTR)Param1.getUTF16StringPtr());
         
     }
     
@@ -277,21 +326,35 @@ void MDI_USE_ICON_FILE(PA_PluginParameters params) {
         Param1.fromParamAtIndex(pParams, 1);
         
         
-        HICON hIcon = (HICON)LoadImage(0,
-                                       (LPCTSTR)Param1.getUTF16StringPtr(),
-                                       IMAGE_ICON,
-                                       0,
-                                       0,
-                                       LR_DEFAULTSIZE | LR_LOADFROMFILE);
+        //ICON_SMALL expects the small-icon metrics, not the default (large) icon size
+        HICON hIcon = (HICON)LoadImageW(NULL,
+                                        (LPCWSTR)Param1.getUTF16StringPtr(),
+                                        IMAGE_ICON,
+                                        GetSystemMetrics(SM_CXSMICON),
+                                        GetSystemMetrics(SM_CYSMICON),
+                                        LR_LOADFROMFILE);
         if(hIcon)
         {
-            SendMessageTimeoutW(mdi,
-                                WM_SETICON,
-                                ICON_SMALL,
-                                (LPARAM)hIcon,
-                                SMTO_NORMAL,
-                                MESSAGE_TIMEOUT_MS,
-                                &ptr);
+            ptr = 0;
+            
+            if (SendMessageTimeoutW(mdi,
+                                    WM_SETICON,
+                                    ICON_SMALL,
+                                    (LPARAM)hIcon,
+                                    SMTO_NORMAL,
+                                    MESSAGE_TIMEOUT_MS,
+                                    &ptr))
+            {
+                //WM_SETICON returns the previous icon. Destroy it only if we created it;
+                //4D's own icon (or one set by anything else) is not ours to destroy.
+                if (ownedIcon && ((HICON)ptr == ownedIcon))
+                {
+                    DestroyIcon(ownedIcon);
+                }
+                ownedIcon = hIcon;
+            }
+            //on failure/timeout the message may still be delivered later, so the handle
+            //is deliberately not destroyed here (a small leak is safer than a dangling icon).
         }
         
     }
@@ -424,15 +487,26 @@ void MDI_SET_POSITION(PA_PluginParameters params) {
            && (hWndInsertAfter != HWND_TOPMOST)){
             //remember, since v1264bits/v14, 4D windowRef is not HWND
             hWndInsertAfter = (HWND)PA_GetHWND((PA_WindowRef)hWndInsertAfter);
+            
+            //an unknown 4D window reference yields NULL, which SetWindowPos would
+            //read as HWND_TOP: do nothing instead of silently doing something else
+            if (!hWndInsertAfter || !IsWindow(hWndInsertAfter)) {
+                return;
+            }
         }
         
-        SetWindowPos(mdi,
-                     hWndInsertAfter,
-                     x.getIntValue(),
-                     y.getIntValue(),
-                     w.getIntValue(),
-                     h.getIntValue(),
-                     flags.getIntValue());
+        if (!SetWindowPos(mdi,
+                          hWndInsertAfter,
+                          x.getIntValue(),
+                          y.getIntValue(),
+                          w.getIntValue(),
+                          h.getIntValue(),
+                          flags.getIntValue())) {
+            //the command has no error channel to 4D; leave a trace for DebugView
+            wchar_t msg[96];
+            wsprintfW(msg, L"MDI SET POSITION: SetWindowPos failed (error %lu)\n", GetLastError());
+            OutputDebugStringW(msg);
+        }
         
     }
     
