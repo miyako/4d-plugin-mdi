@@ -22,6 +22,118 @@ A 4D plugin that controls the main **MDI window** (the frame that contains all y
 
 **Platforms:** Windows 64-bit, 4D v16 or later (MDI mode only)
 
+## Manual source versioning and releases
+
+**Bump version** and **Build** are independent manual Actions. Neither runs on
+branch pushes, pull requests, or tag pushes. Use GitHub's built-in ref selector;
+Build has no custom inputs. Every checkout uses the immutable selected
+`github.sha`. Build has one repository-wide `release-publication` concurrency
+group, with cancellation disabled, across all selected refs.
+
+Run **Bump version** on a branch and select `patch`, `minor`, or `major`. It
+requires a clean checkout at the exact selected remote branch SHA, validates all
+metadata before writing, and creates one nonempty source-only direct-child
+commit with the Copilot co-author trailer. The executable pre-push hook checks
+the server's advertised old SHA/ref, literal new SHA and local HEAD, single
+direct parent, and exactly one update (including rejecting an already-pushed
+same-result race). The hook must exist and be executable both before preparation
+and immediately before push. Push is non-force, with both `push.followTags=false`
+and `--no-follow-tags`. A moved branch, missing hook, or failed guard stops the
+operation; select the updated branch and dispatch again after inspecting the
+failure. Bump creates no tag, release, build, or dispatch.
+
+### Source authority and intake repair
+
+The coordinated source contract covers all **three** assignments each of
+`MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in
+`MDI.xcodeproj/project.pbxproj`, required `CFBundleShortVersionString` in
+`Info.plist`, optional `CFBundleVersion` only when present, and both display
+version fields in `English.lproj/InfoPlist.strings`. All literal versions must
+be the same canonical `X.Y.Z`; missing, duplicate, malformed, or drifted fields
+are errors. Supported `$(MARKETING_VERSION)`, `${MARKETING_VERSION}`,
+`$(CURRENT_PROJECT_VERSION)`, and `${CURRENT_PROJECT_VERSION}` plist references
+are preserved. Current-project settings may reference marketing, never
+themselves. Unknown or cyclic references fail closed. Rewrites preserve BOM,
+individual line endings, modes, references, and unrelated bytes.
+
+History followed through `.github/workflows/bump-version.yml` ends at its
+introduction in `690f94a` (the layout move); no predecessor workflow exists in
+its parent. Its header explicitly coordinates marketing/current-project and
+short/build plist versions. `a3650e7` retains that contract, although its
+marketing-first/fallback implementation updates only one project key.
+Generated commits `dd2294a` and `ab05517` advanced marketing and the source
+plist to **3.0.2**, leaving current-project and source localization at **3.0.0**.
+This migration repairs only those proven-stale source fields to existing
+authority **3.0.2**; it does not increment the release version, add the absent
+`CFBundleVersion`, or change any prebuilt metadata.
+
+Prebuilt `test/Plugins/MDI.bundle` files, destination localization, Windows
+binaries, resources, dependencies, `manifest.json`, XLIFF constants, and 4D
+data/schema counters are not version authority and are never changed by Bump.
+Only the three source metadata paths above are staged by the helper.
+
+### Build and create-only publication
+
+After Bump, manually select the resulting branch/commit in **Build**. An early
+authenticated check requires both the exact `vX.Y.Z` remote tag and any release
+for it (including drafts) to be absent. Releases are checked page by page through
+the final page; authentication, network, HTTP 404, malformed responses, and
+later-page failures are errors, never evidence of absence.
+
+The original native pipeline is preserved: Windows `Release|x64` with the
+workflow's `v143`/SDK `10.0` overrides of the unchanged `v140` project, then
+macOS target `MDI`, configuration `Default`, `arm64 x86_64`, deployment override
+`10.13`, `ONLY_ACTIVE_ARCH=NO`, signing disabled during compilation, and output
+`test/Plugins`. The project configurations, Cocoa framework, copied resources,
+and six existing secret names are unchanged. This packaging topology does not
+add macOS implementations to the Windows-only MDI commands.
+
+Windows cleanup invalidates only the exact Release x64 `.4DX` and `Objs`; its
+output must be the project's exact
+`test/plugins/MDI.bundle/contents/windows64/MDI.4DX`, not a recursive match.
+macOS cleanup invalidates only the generated binary, plist, English strings,
+signature, and `MDI.build` intermediate. Other bundle contents, Windows outputs,
+dependencies, and sibling `Default` resources survive. Cleanup errors are
+fatal. Exact `arm64` and `x86_64` tokens are required, without an invented
+slice-count or additional-architecture exclusion. Built plist and localized
+versions must match the selected source, including normal, XML/binary plist,
+and UTF-16 localized representations.
+
+The Windows artifact is merged before Developer ID signing and strict
+verification. Both ZIP and DMG notarization commands must succeed **and** return
+JSON status `Accepted`; DMG stapling must succeed. Only after all these gates
+does the final authenticated tag/release-absence check run again.
+Publication then performs separate create-only operations: `POST git/refs` at
+the selected SHA, exact remote-tag verification, `POST releases` for a new
+public, non-prerelease release with explicit tag/name/target, then individual
+asset POSTs to the newly returned release ID. Original empty release notes
+remain empty. Existing tags/releases are never reused, edited, deleted, or
+overwritten; there is no combined create-and-upload command, retry, or rollback.
+
+### Partial-publication recovery
+
+Any created tag, release, and successfully uploaded assets are retained if a
+later step fails, including an ambiguous transport failure. Inspect the Actions
+error, exact tag SHA, draft/public releases, returned release ID, and asset list
+before deciding what to do. Do not rerun Build expecting it to complete or
+replace existing state: its absence checks intentionally reject that version.
+An authorized maintainer must investigate retained state and choose recovery
+outside this create-only automation, or use Bump and build a new version.
+Never move/delete a tag or clobber assets as an automatic repair.
+
+### Offline verification
+
+Run `actionlint .github/workflows/*.yml` and
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/tests -v`.
+PowerShell (`pwsh`) is required to exercise the Windows shell tests rather than
+skip them. The suite derives fixtures from the current source, exercises real
+local Git/bare-origin guarded pushes and advertisement races, and extracts
+literal workflow shell/PowerShell blocks with closed-PATH native stubs. It
+does not run native compilers, signing, notarization, 4D, or GitHub publication.
+Run the full suite again in a disposable clone after a genuine helper-driven
+guarded source bump; verify clean equal local/remote heads, a source-only direct
+parent, required trailer, and no remote tags, then remove the fixture.
+
 ---
 
 ## Requirements & platform notes
