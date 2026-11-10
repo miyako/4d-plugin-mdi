@@ -136,6 +136,72 @@ parent, required trailer, and no remote tags, then remove the fixture.
 
 ---
 
+## Native string ownership audit
+
+The source and bundled manifests declare the same ten scalar commands, matching
+dispatcher selectors 1-10. Both native projects compile `4DPlugin-MDI.cpp`,
+`C_TEXT.cpp`, `C_LONGINT.cpp`, and the bundled `4DPluginAPI.c`. Title/path/icon
+inputs are copied before synchronous Windows use; title output uses
+`PA_SetUnistring`'s engine-backed content setter. The SDI probe passes five
+numeric arguments to the synchronous `GET WINDOW RECT` command, not text-array
+arguments. There are no text-array command declarations.
+
+Tracked `support/4DPlugin-JSON.{cpp,h}`, `ARRAY_TEXT.{cpp,h}`, and
+`C_BLOB.{cpp,h}` are dormant: neither native project compiles them and no
+dispatcher command calls them. They were nevertheless included in the audit.
+`C_BLOB`'s text conversions use `C_TEXT` copies. No `CPicture`, `C_POINTER`,
+callback-text helper, or charset-byte-to-UTF16-unit conversion exists in this
+repository. Vendored jsoncpp headers/libraries and prebuilt ZIP/DMG/bundle
+binaries were excluded from source fixes.
+
+At baseline `2c445229b980ad0af33db6a591deea2545f023f8`, four JSON string setters
+overwrote the owning empty allocation from `PA_CreateVariable(eVK_Unistring)`
+with a shallow `PA_SetStringVariable` assignment. They now start Undefined.
+Property getters now clear owning `PA_GetObjectProperty` results after copying,
+including type mismatches. Successful object/collection getters retain their
+existing ownership handoff: the caller must eventually call
+`PA_DisposeObject`/`PA_DisposeCollection`. JSON stringify's independently owned
+duplicated input and returned string still receive separate cleanup.
+
+The bundled SDK implementation identifies itself as **rev v14**, its public
+header as **rev v13**; these are file revisions, not a verified SDK release.
+Its array setter disposes the old element and shallow-transfers the new
+descriptor only for a Unicode array with a non-null data handle, an index
+between zero and the element count inclusive, and a non-null input descriptor.
+Rejected insertion leaves the caller owning its input; array getters borrow.
+`ARRAY_TEXT` normally copies borrowed input and creates independent transferred
+output strings without disposing them after insertion.
+
+Run the non-release regression on macOS:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 .github/tests/test_ownership.py
+```
+
+It compiles the actual helpers and full unchanged SDK with ASan/UBSan, using
+real CoreFoundation conversions and substituting only the engine boundary.
+Explicit string/handle/reference accounting covers allocated and null empty
+representations (LSan is disabled on macOS), exact ASCII/BMP/supplementary text,
+scalar copies, four setter overloads, property cleanup/mismatches, successful
+owning handoffs, independent stringify results, array replacement, borrowed
+copies, independent outputs, shrink/clear, and rejected type/index/null-data/
+null-input insertions. It also syntax-checks the remaining first-party native
+sources. The legacy SDK's integer initialization with `NULL` is allowed as a
+compiler warning without changing SDK source. Output is temporary; no project
+build phases, packaging, signing, notarization, publication, or prebuilt changes
+are involved.
+
+The same harness can target an immutable baseline source export by setting
+`MDI_OWNERSHIP_SOURCE` to its root. The baseline fails allocation/reference
+assertions; the fixed helpers pass. This is not a real 4D or Windows host test
+and does not establish a deployed MDI crash. Windows code paths are not
+compiled by the macOS check. The ownership of `PA_GetApplicationFullPath`'s
+engine-returned descriptor is undocumented in the bundled SDK, so no
+speculative disposal was added. Allocation/resize failure recovery is not
+certified: dormant `ARRAY_TEXT` relies on the SDK's unchecked allocation and
+resize behavior (including updating element count after a failed resize).
+No SDK rewrite or unrelated native-handle hardening is included.
+
 ## Requirements & platform notes
 
 - **Windows only.** The source contains no macOS implementation: every command body is compiled for Windows only. If the plugin is loaded on macOS at all, commands do nothing, `MDI Get title` returns an empty text, `MDI Get close box enabled` returns `0`, and `MDI GET POSITION` returns `0` in all four variables.
